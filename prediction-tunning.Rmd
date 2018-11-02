@@ -1,0 +1,35 @@
+---
+title: "Prediction Tunning"
+author: "Gustavo Monteiro"
+date: "November 2, 2018"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+library(readr)
+library(caret)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+treino <- read.csv("./train.csv")
+teste <- read.csv("./test.csv")
+treino[is.na(treino)] <- 0
+teste[is.na(teste)] <- 0
+treino <- treino %>% select (-cargo)
+teste <- teste %>% select (-cargo)
+```
+
+```{r}
+fitControl <- trainControl(method = "boot")
+preProcValues <- c("center", "scale", "nzv")
+```
+
+```{r}
+m.ridge <- train(votos ~ recursos_proprios, data = treino, trControl = fitControl, preProcess =  preProcValues, method = "ridge", tuneLength = 10)
+m.lasso <- train(votos ~ ., data = treino, trControl = fitControl, method = "lasso", tuneLength = 1)
+m.knn <- train(votos ~ , data = treino, trControl = fitControl, method = "knn", tuneLength = 1)
+ggplot(varImp(m.ridge))
+ggplot(varImp(m.lasso))
+```
