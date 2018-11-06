@@ -14,7 +14,7 @@ output:
     toc_float: yes
 ---
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+library(dataPreparation)
 library(readr)
 library(here)
 library(caret)
@@ -46,26 +46,98 @@ read_csv(
     votos = col_integer(), #  variável alvo. Se refere ao número de votos na campanha de 2006 ou 2010
     .default = col_character())) -> treino
 
-teste <- read.csv("./test.csv")
-
-treino <- treino %>% select (-cargo)
-teste <- teste %>% select (-cargo)
+read_csv(
+  here('./test.csv'), 
+  local= locale("br"),
+  col_types = cols(
+    ano = col_integer(), # ano de referencia
+    sequencial_candidato = col_character(), # id do candidato
+    quantidade_doacoes = col_integer(),
+    quantidade_doadores = col_integer(), # número de doadores diferentes
+    total_receita = col_double(), # soma em R$ das doações
+    media_receita = col_double(), # média das doações
+    recursos_de_outros_candidatos.comites = col_double(), # quantia em R$ das doações provenientes de outros candidatos ou comite partidário
+    recursos_de_pessoas_fisicas = col_double(), # quantia em R$ das doações provenientes de outros CPFs
+    recursos_de_pessoas_juridicas = col_double(), # quantia em R$ das doações provenientes de outros CNPJ
+    recursos_proprios = col_double(), # quantia em R$ das doações provenientes do próprio candidato
+    `recursos_de_partido_politico` = col_double(), # quantia em R$ das doações provenientes do partido político do candidato
+    quantidade_despesas = col_integer(),
+    quantidade_fornecedores = col_integer(), # número de fornecedores/despesas diferentes
+    total_despesa = col_double(), # soma em R$ das despesas de campanha
+    media_despesa = col_double(), # média das despesas de campanha
+    .default = col_character())) -> teste
 ```
+
+```{r}
+treino %>%
+  mutate(uf = as.factor(uf),
+         nome = as.factor(nome),
+         sexo = as.factor(sexo),
+         grau = as.factor(grau),
+         nome = as.factor(nome),
+         cargo = as.factor(cargo),
+         partido = as.factor(partido),
+         ocupacao = as.factor(ocupacao),
+         estado_civil = as.factor(estado_civil),
+         sequencial_candidato = as.numeric(sequencial_candidato)) -> treino
+
+encoding <- build_encoding(dataSet = treino,
+                           cols = c("uf","sexo","grau",
+                                    "partido","estado_civil"),
+                           verbose = F)
+one_hot_encoder(dataSet = treino,
+                encoding = encoding,
+                drop = TRUE,
+                verbose = F) -> treino
+
+teste %>%
+  mutate(uf = as.factor(uf),
+         nome = as.factor(nome),
+         sexo = as.factor(sexo),
+         grau = as.factor(grau),
+         nome = as.factor(nome),
+         cargo = as.factor(cargo),
+         partido = as.factor(partido),
+         ocupacao = as.factor(ocupacao),
+         estado_civil = as.factor(estado_civil),
+         sequencial_candidato = as.numeric(sequencial_candidato)) -> teste
+
+encoding <- build_encoding(dataSet = teste,
+                           cols = c("uf","sexo","grau",
+                                    "partido","estado_civil"),
+                           verbose = F)
+one_hot_encoder(dataSet = teste,
+                encoding = encoding,
+                drop = TRUE,
+                verbose = F) -> teste
+```
+
 
 ```{r}
 fitControl <- trainControl(method = "boot")
 preProcValues <- c("center", "scale")
+rctrl1 <- trainControl(method = "cv", number = 10, returnResamp = "all")
 ```
 
 ```{r}
 set.seed(1)
-
-rctrl1 <- trainControl(method = "cv", number = 10, returnResamp = "all")
 m.ridge <- train(votos ~ quantidade_doadores + quantidade_doadores, data = treino, 
                           method = "ridge", trControl = rctrl1, tuneLenght = 10)
+```
 
+```{r}
+#Lasso
 set.seed(849)
-m.lasso <- train(votos ~ total_despesa + quantidade_doadores, data = treino, tuneLength = 100,
+m.lasso <- train(votos ~ partido.PSDB + partido.PT + quantidade_doacoes + quantidade_doadores + total_receita + media_receita
+                + recursos_de_outros_candidatos.comites + recursos_de_pessoas_fisicas + recursos_de_pessoas_juridicas
+                + recursos_proprios + recursos_de_partido_politico + quantidade_despesas + quantidade_fornecedores
+                + total_despesa +  media_despesa + sexo.MASCULINO + `grau.SUPERIOR COMPLETO` + sexo.FEMININO
+                + `grau.ENSINO FUNDAMENTAL COMPLETO` + `grau.ENSINO FUNDAMENTAL INCOMPLETO` + `grau.ENSINO MÉDIO COMPLETO`
+                + `grau.ENSINO MÉDIO INCOMPLETO` + `grau.LÊ E ESCREVE` + `grau.SUPERIOR INCOMPLETO` + partido.DEM
+                + `partido.PC do B` + `partido.PDT` + partido.PHS + partido.PMDB + partido.PP + partido.PPS + partido.PR
+                + partido.PSB + partido.PSL + partido.PSOL + partido.PTB + partido.PV + estado.civil.CASADO.A. + estado.civil.DIVORCIADO.A.
+                + `estado.civil.SEPARADO.A. JUDICIALMENTE` + `estado.civil.SOLTEIRO.A.` + `estado.civil.VIÚVO.A.`
+                , data = treino, tuneLength = 100,
                           method = "lasso", trControl = rctrl1,
                           preProc = c("center", "scale"))
 
@@ -74,12 +146,26 @@ ggplot(m.lasso)
 m.lasso$results
 test_lasso <- predict(m.lasso, teste)
 test_lasso
+```
 
+
+```{r}
+#KNN
 set.seed(849)
-m.knn <- train(votos ~ total_despesa, data = treino, method = "knn", 
-               preProc = c("center", "scale"), tuneLength = 100)
+m.knn <- train(votos ~ partido.PSDB + partido.PT + quantidade_doacoes + quantidade_doadores + total_receita + media_receita
+                + recursos_de_outros_candidatos.comites + recursos_de_pessoas_fisicas + recursos_de_pessoas_juridicas
+                + recursos_proprios + recursos_de_partido_politico + quantidade_despesas + quantidade_fornecedores
+                + total_despesa +  media_despesa + sexo.MASCULINO + `grau.SUPERIOR COMPLETO` + sexo.FEMININO
+                + `grau.ENSINO FUNDAMENTAL COMPLETO` + `grau.ENSINO FUNDAMENTAL INCOMPLETO` + `grau.ENSINO MÉDIO COMPLETO`
+                + `grau.ENSINO MÉDIO INCOMPLETO` + `grau.LÊ E ESCREVE` + `grau.SUPERIOR INCOMPLETO` + partido.DEM
+                + `partido.PC do B` + `partido.PDT` + partido.PHS + partido.PMDB + partido.PP + partido.PPS + partido.PR
+                + partido.PSB + partido.PSL + partido.PSOL + partido.PTB + partido.PV + estado.civil.CASADO.A. + estado.civil.DIVORCIADO.A.
+                + `estado.civil.SEPARADO.A. JUDICIALMENTE` + `estado.civil.SOLTEIRO.A.` + `estado.civil.VIÚVO.A.`
+               , data = treino, method = "knn", 
+               preProc = c("center", "scale"), tuneLength = 10)
 test_knn <- predict(m.knn, teste)
 ggplot(m.knn)
 test_knn
 m.knn$results
 ```
+
