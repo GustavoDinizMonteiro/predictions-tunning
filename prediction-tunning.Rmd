@@ -114,15 +114,25 @@ one_hot_encoder(dataSet = teste,
 
 
 ```{r}
-fitControl <- trainControl(method = "boot")
+fitControl <- trainControl(method = "repeatedcv", number = 10, repeats = 10)
 preProcValues <- c("center", "scale")
-rctrl1 <- trainControl(method = "cv", number = 10, returnResamp = "all")
+rctrl1 <- trainControl(method = "cv", number = 10, repeats = 10, returnResamp = "all")
+
+# Make a custom tuning grid
+tuneGrid <- expand.grid(lambda = 10^seq(10, -2, length=100))
+
+
 ```
 
 ```{r}
-set.seed(1)
-m.ridge <- train(votos ~ quantidade_doadores + quantidade_doadores, data = treino, 
-                          method = "ridge", trControl = rctrl1, tuneLenght = 10)
+set.seed(42)
+m.ridge <- train(votos ~ ., 
+          data = treino, 
+          method = "ridge", 
+          tuneGrid = tuneGrid, 
+          preProcess = c("center", "scale"), 
+          trControl = fitControl,
+          na.action = na.omit)
 ```
 
 ```{r}
@@ -162,10 +172,20 @@ m.knn <- train(votos ~ partido.PSDB + partido.PT + quantidade_doacoes + quantida
                 + partido.PSB + partido.PSL + partido.PSOL + partido.PTB + partido.PV + estado.civil.CASADO.A. + estado.civil.DIVORCIADO.A.
                 + `estado.civil.SEPARADO.A. JUDICIALMENTE` + `estado.civil.SOLTEIRO.A.` + `estado.civil.VIÚVO.A.`
                , data = treino, method = "knn", 
+               tuneGrid = data.frame(k = 10:31),
                preProc = c("center", "scale"), tuneLength = 10)
 test_knn <- predict(m.knn, teste)
 ggplot(m.knn)
 test_knn
 m.knn$results
 ```
+
+```{r}
+#KNN
+set.seed(849)
+m.knn <- train(votos ~ total_receita * total_despesa * recursos_de_pessoas_juridicas, data = treino, method = "knn", 
+               tuneGrid = data.frame(k = 10:31),
+               preProc = c("center", "scale"), tuneLength = 10)
+```
+
 
